@@ -1,0 +1,29 @@
+# Secrets and sensitive data
+.env
+client_secrets.json
+token.json
+encryption.key
+
+# Database and Backups
+credentials.db
+*.db
+backups/
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE configuration
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
