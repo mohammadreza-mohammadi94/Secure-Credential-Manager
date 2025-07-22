@@ -2,7 +2,6 @@
 # This stage installs dependencies, including build-time tools.
 FROM python:3.11-slim AS builder
 
-# Set working directory
 WORKDIR /app
 
 # Install build-time system dependencies
@@ -21,7 +20,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # This stage is clean and only contains the runtime environment.
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
 # Install runtime-only system dependencies (like curl for the healthcheck)
@@ -29,6 +27,9 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy the installed Python packages from the builder stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+
+# --- FIX: Copy executables (like the 'streamlit' command) from the builder stage ---
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy your application code
 COPY app/ .
