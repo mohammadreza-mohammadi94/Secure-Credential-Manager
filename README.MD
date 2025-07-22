@@ -43,8 +43,8 @@ First, set up the project and install the required Python libraries.
 
 ```bash
 # 1. Clone the repository
-git clone <your-repository-url>
-cd credential-manager
+git clone https://github.com/mohammadreza-mohammadi94/Secure-Credential-Manager.git
+cd secure-credential-manager
 
 # 2. Create and activate a virtual environment
 # On Windows
