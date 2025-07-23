@@ -2,7 +2,9 @@ import streamlit as st
 import os
 import shutil
 import datetime
-from database import init_database, set_app_meta, get_app_meta
+import csv
+from io import StringIO
+from database import init_database, set_app_meta, get_app_meta, get_all_credentials
 from encryption import derive_key_from_password, secure_store, retrieve_secure
 from credential_manager import render_credential_manager
 from gdrive_handler import authenticate, upload_file, SCOPES
@@ -87,6 +89,65 @@ def run_backup_flow():
             if 'auth_url' in st.session_state:
                 del st.session_state.auth_url
 
+# --- Download Logic ---
+def download_csv():
+    """Generate and download a CSV file with decrypted credentials."""
+    st.session_state.downloading = True
+    key = st.session_state.get('encryption_key')
+    print(f"Debug: Starting download_csv - Key available: {key is not None}")
+    
+    if not key:
+        st.error("Please unlock the vault with the master password first.")
+        st.session_state.downloading = False
+        return
+    
+    credentials = get_all_credentials()
+    print(f"Debug: Fetched {len(credentials)} credentials from database")
+    
+    if not credentials:
+        st.error("No credentials found in the database.")
+        st.session_state.downloading = False
+        return
+    
+    # Prepare CSV data
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Account Name", "Email", "Service Name", "Credential Type", "Password", "API Key", "Notes", "Created At", "Updated At"])
+    
+    try:
+        for cred in credentials:
+            decrypted_password = retrieve_secure(cred['password'], key) if cred.get('password') else ""
+            decrypted_api_key = retrieve_secure(cred['api_key'], key) if cred.get('api_key') else ""
+            writer.writerow([
+                cred['id'],
+                cred['account_name'],
+                cred['email'],
+                cred['service_name'],
+                cred['credential_type'],
+                decrypted_password,
+                decrypted_api_key,
+                cred['notes'] or "",
+                cred['created_at'],
+                cred['updated_at']
+            ])
+        print(f"Debug: Successfully wrote {len(credentials)} rows to CSV")
+    except Exception as e:
+        st.error(f"Error generating CSV: {e}")
+        st.session_state.downloading = False
+        return
+    
+    # Create download button with feedback
+    output.seek(0)
+    st.download_button(
+        label="Download CSV",
+        data=output.getvalue(),
+        file_name="credentials_export.csv",
+        mime="text/csv",
+        on_click=lambda: print("Debug: Download button clicked")
+    )
+    st.success("Click the 'Download CSV' button above to save the file.")
+    print("Debug: Download button rendered")
+    st.session_state.downloading = False
 
 # --- Sidebar and Main App Logic ---
 
@@ -104,6 +165,11 @@ def render_sidebar():
     st.sidebar.subheader("Backup")
     if st.sidebar.button("Backup to Google Drive", use_container_width=True):
         st.session_state.run_backup = True
+        
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Export")
+    if st.sidebar.button("Download as CSV", use_container_width=True):
+        download_csv()
         
     st.sidebar.markdown("---")
     st.sidebar.subheader("About")
@@ -134,7 +200,6 @@ def main():
             auth_code = st.text_input("Enter the authorization code you received from Google here:")
             if auth_code:
                 try:
-                    # --- FIX: Added the explicit redirect_uri to match gdrive_handler.py ---
                     flow = InstalledAppFlow.from_client_secrets_file(
                         "client_secrets.json",
                         SCOPES,
