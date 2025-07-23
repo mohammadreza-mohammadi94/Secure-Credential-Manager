@@ -17,125 +17,145 @@ def generate_password(length: int = 16, include_symbols: bool = True):
     return password
 
 # --- UI for Forms (used in dialogs) ---
-def credential_form(credential=None):
-    """Renders the form for adding or editing a credential. Can be pre-filled."""
+def email_form(credential=None):
+    """Renders the form for adding or editing an email credential."""
     is_edit = credential is not None
     key = st.session_state.encryption_key
 
     if st.button("Generate Secure Password", key="generate_pass_dialog"):
         st.session_state.generated_password = generate_password()
     
-    with st.form(key=f"credential_form_{credential['id'] if is_edit else 'add'}"):
-        credential_types = ["Email", "API", "Service Password"]
-        
-        default_index = 0
-        if is_edit:
-            default_type = credential.get('credential_type', 'Email')
-            if default_type in credential_types:
-                default_index = credential_types.index(default_type)
-        
-        selected_type = st.selectbox("Credential Type", options=credential_types, index=default_index, key="credential_type")
-        
-        account_name, service_name, email_address, password_field, api_key_field = "", "", "", "", ""
-
-        if selected_type == "Email":
-            account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", key="account_name_email")
-            service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", key="service_name_email")
-            email_address = st.text_input("Email Address", value=credential.get('email', '') if is_edit else "", key="email_address_email_type")
-            password_field = st.text_input(
-                "Password", type="password",
-                value=st.session_state.get("generated_password", retrieve_secure(credential['password'], key) if is_edit and credential.get('password') else ""),
-                key="password_field_email_type"
-            )
-        elif selected_type == "API":
-            service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", key="service_name_api", placeholder="e.g., OpenAI")
-            account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", key="account_name_api", placeholder="e.g., Main Account")
-            api_key_field = st.text_area("API Key", value=retrieve_secure(credential.get('api_key', ''), key) if is_edit and credential.get('api_key') else "", key="api_key_field_api_type")
-            email_address = ""
-            password_field = ""
-        elif selected_type == "Service Password":
-            service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", key="service_name_service", placeholder="e.g., Netflix")
-            account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", key="account_name_service", placeholder="e.g., Main Acc")
-            email_address = st.text_input("Registered Email", value=credential.get('email', '') if is_edit else "", key="email_address_service_type")
-            password_field = st.text_input(
-                "Password", type="password",
-                value=st.session_state.get("generated_password", retrieve_secure(credential['password'], key) if is_edit and credential.get('password') else ""),
-                key="password_field_service_type"
-            )
-            api_key_field = ""
-
+    with st.form(key=f"email_form_{credential['id'] if is_edit else 'add'}"):
+        account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", key="account_name_email")
+        service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", key="service_name_email")
+        email_address = st.text_input("Email Address", value=credential.get('email', '') if is_edit else "", key="email_address_email_type")
+        password_field = st.text_input(
+            "Password", type="password",
+            value=st.session_state.get("generated_password", retrieve_secure(credential['password'], key) if is_edit and credential.get('password') else ""),
+            key="password_field_email_type"
+        )
         notes = st.text_area("Notes (Optional)", value=credential.get('notes', '') if is_edit else "", key="notes")
 
-        if st.form_submit_button("Save Credential"):
+        if st.form_submit_button("Save Email"):
             if "generated_password" in st.session_state:
                 del st.session_state.generated_password
-
-            if selected_type == "Email":
-                if not all([account_name, service_name, email_address, password_field]):
-                    st.error("All fields are required for Email.")
-                    return
-            elif selected_type == "API":
-                if not all([service_name, account_name, api_key_field]):
-                    st.error("Service Name, Account Name, and API Key are required for API.")
-                    return
-            elif selected_type == "Service Password":
-                if not all([account_name, service_name, email_address, password_field]):
-                    st.error("All fields are required for Service Password.")
-                    return
-
-            enc_pass = secure_store(password_field, key) if password_field else (credential.get('password', '') if is_edit else "")
-            enc_api = secure_store(api_key_field, key) if api_key_field else (credential.get('api_key', '') if is_edit else "")
-            final_email = email_address if email_address else (credential.get('email', '') if is_edit else "")
-
+            if not all([account_name, service_name, email_address, password_field]):
+                st.error("All fields are required for Email.")
+                return
+            enc_pass = secure_store(password_field, key)
+            final_email = email_address
             if is_edit:
-                update_credential(credential['id'], account_name, final_email, service_name, selected_type, enc_pass, enc_api, notes)
-                st.success("Credential updated!")
+                update_credential(credential['id'], account_name, final_email, service_name, "Email", enc_pass, "", notes)
+                st.success("Email updated!")
             else:
-                insert_credential(account_name, final_email, service_name, selected_type, enc_pass, enc_api, notes)
-                st.success("Credential added!")
+                insert_credential(account_name, final_email, service_name, "Email", enc_pass, "", notes)
+                st.success("Email added!")
+            st.rerun()
+
+def service_form(email_id, credential=None):
+    """Renders the form for adding or editing a service credential in a dialog."""
+    is_edit = credential is not None
+    key = st.session_state.encryption_key
+
+    if st.button("Generate Secure Password", key=f"generate_pass_service_{email_id}"):
+        st.session_state[f"generated_password_{email_id}"] = generate_password()
+    
+    with st.form(key=f"service_form_{email_id}_{credential['id'] if is_edit else 'add'}"):
+        service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", key=f"service_name_service_{email_id}", placeholder="e.g., Netflix")
+        account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", key=f"account_name_service_{email_id}", placeholder="e.g., Main Acc")
+        email_address = st.text_input("Email Address", value=next((c['email'] for c in get_all_credentials() if c['id'] == email_id), ""), disabled=True, key=f"email_address_service_{email_id}")
+        password_field = st.text_input(
+            "Password", type="password",
+            value=st.session_state.get(f"generated_password_{email_id}", retrieve_secure(credential['password'], key) if is_edit and credential.get('password') else ""),
+            key=f"password_field_service_{email_id}"
+        )
+        notes = st.text_area("Notes (Optional)", value=credential.get('notes', '') if is_edit else "", key=f"notes_service_{email_id}")
+
+        if st.form_submit_button("Save Service"):
+            if f"generated_password_{email_id}" in st.session_state:
+                del st.session_state[f"generated_password_{email_id}"]
+            if not all([service_name, account_name, password_field]):
+                st.error("Service Name, Account Name, and Password are required.")
+                return
+            enc_pass = secure_store(password_field, key)
+            print(f"Debug: Attempting to insert service - email: {email_address}, service_name: {service_name}, account_name: {account_name}, password: {enc_pass[:10]}...")
+            if is_edit:
+                success = update_credential(credential['id'], account_name, email_address, service_name, "Service Password", enc_pass, "", notes)
+                if success:
+                    st.success("Service updated!")
+                else:
+                    st.error("Failed to update service. Check logs.")
+            else:
+                success = insert_credential(account_name, email_address, service_name, "Service Password", enc_pass, "", notes)
+                if success:
+                    st.success("Service added!")
+                else:
+                    st.error("Failed to add service. Check logs.")
+            st.session_state.dialog_type = None
             st.rerun()
 
 # --- Main Application UI ---
 def render_credential_manager():
     """Render the main credential management interface."""
     st.title("🔐 Credential Manager")
+    if "dialog_type" not in st.session_state:
+        st.session_state.dialog_type = None
+    if "current_email_id" not in st.session_state:
+        st.session_state.current_email_id = None
+    if "current_credential" not in st.session_state:
+        st.session_state.current_credential = None
     key = st.session_state.encryption_key
 
     # --- Dialogs ---
-    @st.dialog("Add New Credential")
-    def add_dialog():
-        credential_form()
-
-    @st.dialog("View Full Details")
-    def view_dialog(credential):
-        st.write(f"**Credential Type:** {credential.get('credential_type', 'N/A')}")
-        st.write(f"**Account Name:** {credential['account_name']}")
-        st.write(f"**Service Name:** {credential['service_name']}")
-        if credential.get('credential_type') == 'Email':
-            st.write(f"**Email Address:** {credential['email']}")
-            if credential.get('password'):
-                st.text_input("Password", retrieve_secure(credential['password'], key), type="password", disabled=True)
-        elif credential.get('credential_type') == 'API':
-            if credential.get('api_key'):
-                st.text_area("API Key", retrieve_secure(credential['api_key'], key), disabled=True)
-        elif credential.get('credential_type') == 'Service Password':
-            st.write(f"**Registered Email:** {credential['email']}")
-            if credential.get('password'):
-                st.text_input("Password", retrieve_secure(credential['password'], key), type="password", disabled=True)
-        if credential.get('notes'):
-            st.write(f"**Notes:** {credential['notes']}")
-        if st.button("Close"):
-            st.rerun()
-
-    @st.dialog("Edit Credential")
-    def edit_dialog(credential_to_edit):
-        credential_form(credential=credential_to_edit)
+    @st.dialog("Credential Management")
+    def credential_dialog():
+        st.write(f"Debug: Dialog type is {st.session_state.dialog_type}")
+        if st.session_state.dialog_type == "view_email" and st.session_state.current_credential:
+            st.write(f"Debug: Viewing email {st.session_state.current_credential['id']}")
+            st.write(f"**Credential Type:** {st.session_state.current_credential.get('credential_type', 'N/A')}")
+            st.write(f"**Account Name:** {st.session_state.current_credential['account_name']}")
+            st.write(f"**Service Name:** {st.session_state.current_credential['service_name']}")
+            st.write(f"**Email Address:** {st.session_state.current_credential['email']}")
+            if st.session_state.current_credential.get('password'):
+                st.text_input("Password", retrieve_secure(st.session_state.current_credential['password'], key), type="password", disabled=True)
+            if st.session_state.current_credential.get('notes'):
+                st.write(f"**Notes:** {st.session_state.current_credential['notes']}")
+            # نمایش و مدیریت سرویس‌ها مستقیماً در همین دیالوگ
+            email_address = st.session_state.current_credential['email']
+            services = [c for c in get_all_credentials() if c.get('credential_type') == 'Service Password' and c.get('email') == email_address]
+            st.write(f"**Associated Services:**")
+            st.write(f"Debug: Found {len(services)} services")
+            if not services:
+                st.write("No services associated with this email. Add one below.")
+            if st.button("Add New Service"):
+                service_form(st.session_state.current_credential['id'])
+            for service in services:
+                col1, col2, col3 = st.columns([1, 1, 1])
+                col1.write(service.get('service_name', ''))
+                col2.write(service.get('account_name', ''))
+                if col3.button("Edit", key=f"edit_service_{service['id']}"):
+                    service_form(st.session_state.current_credential['id'], service)
+                if col3.button("Delete", key=f"delete_service_{service['id']}"):
+                    delete_credential(service['id'])
+                    st.rerun()
+            if st.button("Close"):
+                st.session_state.dialog_type = None
+                st.session_state.current_credential = None
+                st.rerun()
+        elif st.session_state.dialog_type == "add_email":
+            st.write("Debug: Adding new email")
+            email_form()
+        elif st.session_state.dialog_type == "edit_email" and st.session_state.current_credential:
+            st.write("Debug: Editing email")
+            email_form(st.session_state.current_credential)
 
     @st.dialog("Confirm Deletion")
     def delete_dialog(credential_id):
         st.error("Are you sure you want to permanently delete this credential?")
         if st.button("Yes, Delete"):
             delete_credential(credential_id)
+            st.session_state.dialog_type = None
+            st.session_state.current_credential = None
             st.rerun()
 
     @st.dialog("View Secret")
@@ -145,15 +165,17 @@ def render_credential_manager():
         if st.button("Close", key=f"close_secret_{name}"):
             st.rerun()
 
-    if st.button("✚ Add New Credential"):
-        add_dialog()
+    if st.button("✚ Add New Email"):
+        st.session_state.dialog_type = "add_email"
+        credential_dialog()
 
     # --- Filtering and Sorting ---
     all_credentials = get_all_credentials()
+    print(f"Debug: All credentials: {all_credentials}")  # Check database output
     col1, col2 = st.columns([1, 2])
     with col1:
-        unique_types = sorted(list(set(c.get('credential_type') for c in all_credentials if c.get('credential_type'))))
-        types_to_display = st.multiselect("Filter by Type", options=unique_types, default=[])  # No default filter
+        unique_types = ["Email", "API"]  # Only Email and API types now
+        types_to_display = st.multiselect("Filter by Type", options=unique_types, default=[])
     with col2:
         search_query = st.text_input("Search Credentials", placeholder="Search by Account, Service, or Email...")
 
@@ -184,13 +206,18 @@ def render_credential_manager():
     def render_actions(credential):
         col1, col2, col3 = st.columns([1, 1, 1])
         if col1.button("👁️", key=f"view_{credential['id']}", help="View"):
-            view_dialog(credential)
+            st.session_state.dialog_type = "view_email"
+            st.session_state.current_credential = credential
+            st.session_state.current_email_id = credential['id']
+            credential_dialog()
         if col2.button("✏️", key=f"edit_{credential['id']}", help="Edit"):
-            edit_dialog(credential)
+            st.session_state.dialog_type = "edit_email"
+            st.session_state.current_credential = credential
+            credential_dialog()
         if col3.button("🗑️", key=f"delete_{credential['id']}", help="Delete"):
             delete_dialog(credential['id'])
 
-    tab_email, tab_api, tab_services = st.tabs(["📧 Email", "🔑 API", "⚙️ Services"])
+    tab_email, tab_api = st.tabs(["📧 Email", "🔑 API"])
 
     with tab_email:
         email_creds = [c for c in filtered_creds if c.get('credential_type') == 'Email']
@@ -230,25 +257,4 @@ def render_credential_manager():
                 if col3.button("View", key=f"key_api_{cred['id']}"):
                     show_secret_dialog("API Key", retrieve_secure(cred['api_key'], key))
                 with col4:
-                    render_actions(cred)
-
-    with tab_services:
-        service_creds = [c for c in filtered_creds if c.get('credential_type') == 'Service Password']
-        if not service_creds:
-            st.info("No Service credentials match your filters.")
-        else:
-            col1, col2, col3, col4, col5 = st.columns([2, 2, 2.5, 1.5, 1.5])
-            col1.write("**Service Name**")
-            col2.write("**Account Name**")
-            col3.write("**Registered Email**")
-            col4.write("**Password**")
-            col5.write("**Actions**")
-            for cred in service_creds:
-                col1, col2, col3, col4, col5 = st.columns([2, 2, 2.5, 1.5, 1.5])
-                col1.write(cred.get('service_name', ''))
-                col2.write(cred.get('account_name', ''))
-                col3.write(cred.get('email', ''))
-                if col4.button("View", key=f"pwd_service_{cred['id']}"):
-                    show_secret_dialog("Password", retrieve_secure(cred['password'], key))
-                with col5:
                     render_actions(cred)
