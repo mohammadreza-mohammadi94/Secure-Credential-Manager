@@ -43,7 +43,7 @@ def init_database():
     conn.commit()
     conn.close()
 
-@st.cache_data
+@st.cache_data(ttl=300, show_spinner=False)  # TTL کوتاه برای به‌روزرسانی سریع
 def get_all_credentials() -> List[Dict]:
     """Get all credential records."""
     conn = get_db_connection()
@@ -58,13 +58,13 @@ def insert_credential(account_name: str, email: str, service_name: str, credenti
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # --- UPDATED: Added credential_type ---
         cursor.execute(
             'INSERT INTO credentials (account_name, email, service_name, credential_type, password, api_key, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
             (account_name, email, service_name, credential_type, password, api_key, notes)
         )
         conn.commit()
         st.cache_data.clear()
+        print(f"Debug: Successfully inserted credential - ID: {cursor.lastrowid}, type: {credential_type}")
         return True
     except sqlite3.Error as e:
         print(f"Database error: {e}")
@@ -78,7 +78,6 @@ def update_credential(record_id: int, account_name: str, email: str, service_nam
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # --- UPDATED: Added credential_type ---
         cursor.execute('''
             UPDATE credentials
             SET account_name = ?, email = ?, service_name = ?, credential_type = ?, password = ?, api_key = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
