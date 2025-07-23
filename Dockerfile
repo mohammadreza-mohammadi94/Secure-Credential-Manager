@@ -27,15 +27,14 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy the installed Python packages from the builder stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-
-# --- FIX: Copy executables (like the 'streamlit' command) from the builder stage ---
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy your application code
-COPY app/ .
+# --- CHANGE: Copy all .py files from the root directory ---
+COPY *.py ./
 
 # Create and switch to a non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app
 USER appuser
 
 # Health check
