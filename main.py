@@ -10,6 +10,9 @@ from credential_manager import render_credential_manager
 from gdrive_handler import authenticate, upload_file, SCOPES
 from google_auth_oauthlib.flow import InstalledAppFlow
 
+# --- Constants and Configuration ---
+INACTIVITY_TIMEOUT_MINUTES = 5
+
 # --- Page and App Initialization ---
 
 st.set_page_config(
@@ -24,6 +27,24 @@ def init_app():
     init_database()
 
 # --- Login / Authentication Flow ---
+
+def check_session_timeout():
+    """Check for user inactivity and lock the vault if the timeout is exceeded."""
+    if 'last_activity' in st.session_state:
+        now = datetime.datetime.now()
+        duration_since_last_activity = now - st.session_state.last_activity
+        if duration_since_last_activity.total_seconds() > INACTIVITY_TIMEOUT_MINUTES * 60:
+            # Clear sensitive data from session state to "lock" the vault
+            if 'encryption_key' in st.session_state:
+                del st.session_state['encryption_key']
+            st.warning(f"Session timed out due to inactivity. Please unlock the vault again.")
+            st.rerun()
+        else:
+            # Update last activity time on each interaction
+            st.session_state.last_activity = now
+    elif 'encryption_key' in st.session_state:
+        # If the key exists but timeout tracking hasn't started, start it.
+        st.session_state.last_activity = datetime.datetime.now()
 
 def render_login_form():
     """Renders the master password form and handles authentication."""
@@ -61,6 +82,7 @@ def render_login_form():
                     decrypted_check = retrieve_secure(stored_check_hash_bytes.decode('utf-8'), key)
                     if decrypted_check == "password_check_ok":
                         st.session_state.encryption_key = key
+                        st.session_state.last_activity = datetime.datetime.now()
                         st.rerun()
                     else:
                         st.error("Incorrect master password.")
@@ -184,6 +206,7 @@ def render_sidebar():
 def main():
     """Main application function."""
     init_app()
+    check_session_timeout()
     
     if 'encryption_key' not in st.session_state:
         render_login_form()
