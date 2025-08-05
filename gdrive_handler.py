@@ -1,4 +1,5 @@
 import os.path
+import json
 import streamlit as st
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -16,7 +17,11 @@ def authenticate():
     creds = None
     # The file token.json stores the user's access and refresh tokens.
     if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+        try:
+            creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+        except json.JSONDecodeError:
+            st.warning("Could not decode `token.json`. Please re-authenticate.")
+            creds = None
     
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
