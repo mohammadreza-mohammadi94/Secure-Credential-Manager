@@ -8,6 +8,7 @@ from database import (
 from encryption import retrieve_secure, secure_store
 from st_copy import copy_button
 from zxcvbn import zxcvbn
+import favicon
 
 # --- Password Generation and Strength ---
 def get_password_strength(password):
@@ -62,7 +63,9 @@ def email_form(credential=None):
     with st.form(key=form_id):
         account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "")
         service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "")
+        service_url = st.text_input("Service URL", value=credential.get('service_url', '') if is_edit else "")
         email_address = st.text_input("Email Address", value=credential.get('email', '') if is_edit else "")
+        tags = st.text_input("Tags (comma-separated)", value=", ".join(credential.get('tags', [])) if is_edit else "")
         notes = st.text_area("Notes (Optional)", value=credential.get('notes', '') if is_edit else "")
 
         if st.form_submit_button("Save Email"):
@@ -71,13 +74,24 @@ def email_form(credential=None):
                 st.error("All fields are required for Email.")
                 return
 
+            tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+            favicon_url = None
+            if service_url:
+                try:
+                    icons = favicon.get(service_url)
+                    if icons:
+                        favicon_url = icons[0].url
+                except Exception as e:
+                    st.warning(f"Could not fetch favicon for {service_url}: {e}")
+
             enc_pass = secure_store(password_to_save, st.session_state.encryption_key)
 
             if is_edit:
-                update_credential(credential['id'], account_name, email_address, service_name, "Email", enc_pass, "", notes)
+                update_credential(credential['id'], account_name, email_address, service_name, "Email", enc_pass, "", notes, favicon_url=favicon_url, tags=tag_list)
                 st.success("Email updated!")
             else:
-                insert_credential(account_name, email_address, service_name, "Email", enc_pass, "", notes)
+                insert_credential(account_name, email_address, service_name, "Email", enc_pass, "", notes, favicon_url=favicon_url, tags=tag_list)
                 st.success("Email added!")
 
             # Clean up session state for this form
@@ -141,8 +155,10 @@ def service_form(email_id, credential=None):
 
     with st.form(key=form_id):
         service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", placeholder="e.g., Netflix")
+        service_url = st.text_input("Service URL", value=credential.get('service_url', '') if is_edit else "")
         account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", placeholder="e.g., Main Acc")
         email_address = st.text_input("Email Address", value=next((c['email'] for c in get_all_credentials() if c['id'] == email_id), ""), disabled=True)
+        tags = st.text_input("Tags (comma-separated)", value=", ".join(credential.get('tags', [])) if is_edit else "")
         notes = st.text_area("Notes (Optional)", value=credential.get('notes', '') if is_edit else "")
 
         if st.form_submit_button("Save Service"):
@@ -151,14 +167,25 @@ def service_form(email_id, credential=None):
                 st.error("Service Name, Account Name, and Password are required.")
                 return
 
+            tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
+
+            favicon_url = None
+            if service_url:
+                try:
+                    icons = favicon.get(service_url)
+                    if icons:
+                        favicon_url = icons[0].url
+                except Exception as e:
+                    st.warning(f"Could not fetch favicon for {service_url}: {e}")
+
             enc_pass = secure_store(password_to_save, st.session_state.encryption_key)
 
             if is_edit:
-                success = update_credential(credential['id'], account_name, email_address, service_name, "Service Password", enc_pass, "", notes)
+                success = update_credential(credential['id'], account_name, email_address, service_name, "Service Password", enc_pass, "", notes, favicon_url=favicon_url, tags=tag_list)
                 if success: st.success("Service updated!")
                 else: st.error("Failed to update service.")
             else:
-                success = insert_credential(account_name, email_address, service_name, "Service Password", enc_pass, "", notes)
+                success = insert_credential(account_name, email_address, service_name, "Service Password", enc_pass, "", notes, favicon_url=favicon_url, tags=tag_list)
                 if success: st.success("Service added!")
                 else: st.error("Failed to add service.")
 
@@ -295,13 +322,12 @@ def render_credential_manager():
 
     # --- Filtering and Sorting ---
     all_credentials = get_all_credentials()
-    print(f"Debug: All credentials: {all_credentials}")  # Check database output
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        unique_types = ["Email", "API"]  # Only Email and API types now
-        types_to_display = st.multiselect("Filter by Type", options=unique_types, default=[])
-    with col2:
-        search_query = st.text_input("Search Credentials", placeholder="Search by Account, Service, or Email...")
+    all_tags = get_all_tags()
+
+    st.sidebar.header("Filters")
+    types_to_display = st.sidebar.multiselect("Filter by Type", options=["Email", "API"], default=[])
+    tags_to_display = st.sidebar.multiselect("Filter by Tags", options=all_tags, default=[])
+    search_query = st.sidebar.text_input("Search Credentials", placeholder="Search...")
 
     col3, col4 = st.columns(2)
     with col3:
@@ -312,6 +338,7 @@ def render_credential_manager():
     filtered_creds = [
         cred for cred in all_credentials if
         (not types_to_display or cred.get('credential_type') in types_to_display) and
+        (not tags_to_display or any(tag in cred.get('tags', []) for tag in tags_to_display)) and
         (not search_query or
          search_query.lower() in cred.get('account_name', '').lower() or
          search_query.lower() in cred.get('service_name', '').lower() or
@@ -360,9 +387,14 @@ def render_credential_manager():
             col5.write("**Actions**")
             for cred in email_creds:
                 col1, col2, col3, col4, col5 = st.columns([2, 2, 2.5, 1.5, 1.5])
+
+                favicon_html = f"<img src='{cred['favicon_url']}' width='16' height='16' style='margin-right: 5px;'>" if cred.get('favicon_url') else ""
                 col1.write(cred.get('account_name', ''))
-                col2.write(cred.get('service_name', ''))
+                col2.markdown(f"{favicon_html}{cred.get('service_name', '')}", unsafe_allow_html=True)
                 col3.write(cred.get('email', ''))
+
+                tags_html = "".join([f"<span style='background-color: #eee; border-radius: 5px; padding: 2px 5px; margin-right: 5px;'>{tag}</span>" for tag in cred.get('tags', [])])
+                st.markdown(tags_html, unsafe_allow_html=True)
                 decrypted_pass = retrieve_secure(cred['password'], key)
                 copy_button(decrypted_pass, key=f"pwd_email_{cred['id']}")
                 with col5:
