@@ -49,22 +49,20 @@ def email_form(credential=None):
     if st.button("Generate Secure Password", key=f"generate_pass_{form_id}"):
         st.session_state[f"password_{form_id}"] = generate_password()
 
+    # Password input and strength meter are outside the form
+    st.text_input(
+        "Password", type="password",
+        value=st.session_state[f"password_{form_id}"],
+        on_change=update_password,
+        key=f"password_input_{form_id}"
+    )
+    color, text = get_password_strength(st.session_state[f"password_{form_id}"])
+    st.markdown(f"**Strength:** <span style='color:{color};'>{text}</span>", unsafe_allow_html=True)
+
     with st.form(key=form_id):
         account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "")
         service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "")
         email_address = st.text_input("Email Address", value=credential.get('email', '') if is_edit else "")
-
-        password_field = st.text_input(
-            "Password", type="password",
-            value=st.session_state[f"password_{form_id}"],
-            on_change=update_password,
-            key=f"password_input_{form_id}"
-        )
-
-        # Password strength meter
-        color, text = get_password_strength(st.session_state[f"password_{form_id}"])
-        st.markdown(f"**Strength:** <span style='color:{color};'>{text}</span>", unsafe_allow_html=True)
-
         notes = st.text_area("Notes (Optional)", value=credential.get('notes', '') if is_edit else "")
 
         if st.form_submit_button("Save Email"):
@@ -131,22 +129,20 @@ def service_form(email_id, credential=None):
     if st.button("Generate Secure Password", key=f"generate_pass_{form_id}"):
         st.session_state[f"password_{form_id}"] = generate_password()
 
+    # Password input and strength meter are outside the form
+    st.text_input(
+        "Password", type="password",
+        value=st.session_state[f"password_{form_id}"],
+        on_change=update_password,
+        key=f"password_input_{form_id}"
+    )
+    color, text = get_password_strength(st.session_state[f"password_{form_id}"])
+    st.markdown(f"**Strength:** <span style='color:{color};'>{text}</span>", unsafe_allow_html=True)
+
     with st.form(key=form_id):
         service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", placeholder="e.g., Netflix")
         account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", placeholder="e.g., Main Acc")
         email_address = st.text_input("Email Address", value=next((c['email'] for c in get_all_credentials() if c['id'] == email_id), ""), disabled=True)
-
-        password_field = st.text_input(
-            "Password", type="password",
-            value=st.session_state[f"password_{form_id}"],
-            on_change=update_password,
-            key=f"password_input_{form_id}"
-        )
-
-        # Password strength meter
-        color, text = get_password_strength(st.session_state[f"password_{form_id}"])
-        st.markdown(f"**Strength:** <span style='color:{color};'>{text}</span>", unsafe_allow_html=True)
-
         notes = st.text_area("Notes (Optional)", value=credential.get('notes', '') if is_edit else "")
 
         if st.form_submit_button("Save Service"):
