@@ -6,7 +6,7 @@ from database import (
     get_all_credentials, insert_credential, update_credential, delete_credential
 )
 from encryption import retrieve_secure, secure_store
-from streamlit_copy_to_clipboard import st_copy_to_clipboard
+from st_copy import st_copy
 from zxcvbn import zxcvbn
 
 # --- Password Generation and Strength ---
@@ -367,9 +367,8 @@ def render_credential_manager():
                 col1.write(cred.get('account_name', ''))
                 col2.write(cred.get('service_name', ''))
                 col3.write(cred.get('email', ''))
-                if col4.button("📋 Copy", key=f"pwd_email_{cred['id']}"):
-                    decrypted_pass = retrieve_secure(cred['password'], key)
-                    st_copy_to_clipboard(decrypted_pass, "Password copied to clipboard!")
+                decrypted_pass = retrieve_secure(cred['password'], key)
+                st_copy(decrypted_pass, button_text="📋 Copy", key=f"pwd_email_{cred['id']}")
                 with col5:
                     render_actions(cred)
 
@@ -400,8 +399,7 @@ def render_credential_manager():
                 status_color = "green" if is_active else "red"
                 col3.markdown(f"<span {row_style}> <span style='color:{status_color};'>●</span> {status_text}</span>", unsafe_allow_html=True)
 
-                if col4.button("📋 Copy", key=f"key_api_{cred['id']}"):
-                    decrypted_key = retrieve_secure(cred['api_key'], key)
-                    st_copy_to_clipboard(decrypted_key, "API Key copied to clipboard!")
+                decrypted_key = retrieve_secure(cred['api_key'], key)
+                st_copy(decrypted_key, button_text="📋 Copy", key=f"key_api_{cred['id']}")
                 with col5:
                     render_actions(cred)
