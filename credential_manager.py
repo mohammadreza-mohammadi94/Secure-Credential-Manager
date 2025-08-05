@@ -3,7 +3,7 @@ import pandas as pd
 import secrets
 import string
 from database import (
-    get_all_credentials, insert_credential, update_credential, delete_credential
+    get_all_credentials, insert_credential, update_credential, delete_credential, get_all_tags
 )
 from encryption import retrieve_secure, secure_store
 from st_copy import copy_button
