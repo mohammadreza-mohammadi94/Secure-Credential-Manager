@@ -52,6 +52,32 @@ def email_form(credential=None):
                 st.success("Email added!")
             st.rerun()
 
+def api_form(credential=None):
+    """Renders the form for adding or editing an API credential."""
+    is_edit = credential is not None
+    key = st.session_state.encryption_key
+
+    with st.form(key=f"api_form_{credential['id'] if is_edit else 'add'}"):
+        service_name = st.text_input("Service Name", value=credential.get('service_name', '') if is_edit else "", key="service_name_api")
+        account_name = st.text_input("Account Name", value=credential.get('account_name', '') if is_edit else "", key="account_name_api")
+        api_key_field = st.text_input("API Key", type="password", value=retrieve_secure(credential['api_key'], key) if is_edit and credential.get('api_key') else "", key="api_key_field")
+        notes = st.text_area("Notes (Optional)", value=credential.get('notes', '') if is_edit else "", key="notes_api")
+
+        if st.form_submit_button("Save API Key"):
+            if not all([account_name, service_name, api_key_field]):
+                st.error("Service Name, Account Name and API Key are required.")
+                return
+
+            enc_api_key = secure_store(api_key_field, key)
+
+            if is_edit:
+                update_credential(credential['id'], account_name, "", service_name, "API", "", enc_api_key, notes)
+                st.success("API Key updated!")
+            else:
+                insert_credential(account_name, "", service_name, "API", "", enc_api_key, notes)
+                st.success("API Key added!")
+            st.rerun()
+
 def service_form(email_id, credential=None):
     """Renders the form for adding or editing a service credential in a dialog."""
     is_edit = credential is not None
@@ -91,7 +117,10 @@ def service_form(email_id, credential=None):
                     st.success("Service added!")
                 else:
                     st.error("Failed to add service. Check logs.")
-            st.session_state.dialog_type = None
+            # Clear the dialog state and rerun
+            st.session_state.dialog_type = "view_email" # Go back to the email view
+            st.session_state.show_service_dialog = False
+            st.session_state.editing_service_credential = None
             st.rerun()
 
 # --- Main Application UI ---
@@ -104,7 +133,25 @@ def render_credential_manager():
         st.session_state.current_email_id = None
     if "current_credential" not in st.session_state:
         st.session_state.current_credential = None
+    if 'show_service_dialog' not in st.session_state:
+        st.session_state.show_service_dialog = False
+    if 'editing_service_credential' not in st.session_state:
+        st.session_state.editing_service_credential = None
+
     key = st.session_state.encryption_key
+
+    @st.dialog("Manage Service")
+    def service_dialog():
+        """Dialog for adding or editing a service."""
+        email_id = st.session_state.current_email_id
+        credential = st.session_state.editing_service_credential
+        title = "Edit Service" if credential else "Add New Service"
+        st.subheader(title)
+        service_form(email_id, credential)
+        if st.button("Cancel"):
+            st.session_state.show_service_dialog = False
+            st.session_state.editing_service_credential = None
+            st.rerun()
 
     # --- Dialogs ---
     @st.dialog("Credential Management")
@@ -128,16 +175,21 @@ def render_credential_manager():
             if not services:
                 st.write("No services associated with this email. Add one below.")
             if st.button("Add New Service"):
-                service_form(st.session_state.current_credential['id'])
+                st.session_state.show_service_dialog = True
+                st.session_state.editing_service_credential = None # Ensure it's a new service
+                st.rerun() # Rerun to open the new dialog
             for service in services:
-                col1, col2, col3 = st.columns([1, 1, 1])
+                col1, col2, col3, col4 = st.columns([1, 1, 0.5, 0.5])
                 col1.write(service.get('service_name', ''))
                 col2.write(service.get('account_name', ''))
-                if col3.button("Edit", key=f"edit_service_{service['id']}"):
-                    service_form(st.session_state.current_credential['id'], service)
-                if col3.button("Delete", key=f"delete_service_{service['id']}"):
+                if col3.button("✏️", key=f"edit_service_{service['id']}"):
+                    st.session_state.show_service_dialog = True
+                    st.session_state.editing_service_credential = service # Pass service to edit
+                    st.rerun()
+                if col4.button("🗑️", key=f"delete_service_{service['id']}"):
                     delete_credential(service['id'])
                     st.rerun()
+
             if st.button("Close"):
                 st.session_state.dialog_type = None
                 st.session_state.current_credential = None
@@ -148,6 +200,15 @@ def render_credential_manager():
         elif st.session_state.dialog_type == "edit_email" and st.session_state.current_credential:
             st.write("Debug: Editing email")
             email_form(st.session_state.current_credential)
+        elif st.session_state.dialog_type == "add_api":
+            st.write("Debug: Adding new API")
+            api_form()
+        elif st.session_state.dialog_type == "edit_api" and st.session_state.current_credential:
+            st.write("Debug: Editing API")
+            api_form(st.session_state.current_credential)
+
+    if st.session_state.show_service_dialog:
+        service_dialog()
 
     @st.dialog("Confirm Deletion")
     def delete_dialog(credential_id):
@@ -165,8 +226,12 @@ def render_credential_manager():
         if st.button("Close", key=f"close_secret_{name}"):
             st.rerun()
 
-    if st.button("✚ Add New Email"):
+    c1, c2 = st.columns(2)
+    if c1.button("✚ Add New Email", use_container_width=True):
         st.session_state.dialog_type = "add_email"
+        credential_dialog()
+    if c2.button("✚ Add New API Key", use_container_width=True):
+        st.session_state.dialog_type = "add_api"
         credential_dialog()
 
     # --- Filtering and Sorting ---
@@ -205,15 +270,25 @@ def render_credential_manager():
 
     def render_actions(credential):
         col1, col2, col3 = st.columns([1, 1, 1])
-        if col1.button("👁️", key=f"view_{credential['id']}", help="View"):
-            st.session_state.dialog_type = "view_email"
-            st.session_state.current_credential = credential
-            st.session_state.current_email_id = credential['id']
-            credential_dialog()
+        # View button is specific to emails for now
+        if credential.get('credential_type') == 'Email':
+            if col1.button("👁️", key=f"view_{credential['id']}", help="View Details & Services"):
+                st.session_state.dialog_type = "view_email"
+                st.session_state.current_credential = credential
+                st.session_state.current_email_id = credential['id']
+                credential_dialog()
+        else:
+            col1.write("") # Placeholder to keep alignment
+
         if col2.button("✏️", key=f"edit_{credential['id']}", help="Edit"):
-            st.session_state.dialog_type = "edit_email"
+            # Set dialog type based on credential type
+            if credential.get('credential_type') == 'API':
+                st.session_state.dialog_type = "edit_api"
+            else: # Default to email
+                st.session_state.dialog_type = "edit_email"
             st.session_state.current_credential = credential
             credential_dialog()
+
         if col3.button("🗑️", key=f"delete_{credential['id']}", help="Delete"):
             delete_dialog(credential['id'])
 
@@ -245,13 +320,15 @@ def render_credential_manager():
         if not api_creds:
             st.info("No API credentials match your filters.")
         else:
-            col1, col2, col3, col4 = st.columns([2.5, 2.5, 2, 1.5])
+            # Actions column is wider to accommodate buttons
+            col1, col2, col3, col4 = st.columns([2.5, 2.5, 1.5, 2])
             col1.write("**Service Name**")
             col2.write("**Account Name**")
             col3.write("**API Key**")
             col4.write("**Actions**")
+            st.divider()
             for cred in api_creds:
-                col1, col2, col3, col4 = st.columns([2.5, 2.5, 2, 1.5])
+                col1, col2, col3, col4 = st.columns([2.5, 2.5, 1.5, 2])
                 col1.write(cred.get('service_name', ''))
                 col2.write(cred.get('account_name', ''))
                 if col3.button("View", key=f"key_api_{cred['id']}"):
