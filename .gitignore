@@ -8,6 +8,7 @@ encryption.key
 credentials.db
 *.db
 backups/
+issues.txt
 
 # Python virtual environment
 .venv/
